@@ -21,17 +21,12 @@ Each day (after Octopus publishes the next day's rates, ~4pm UK time), the bot:
 
 ## Architecture
 
-```
-notifiers/telegram.py Formats slots and talks to the Telegram Bot API (sending alerts,
-                       reading incoming /setthreshold and /setregion commands).
-scripts/               Entry points:
-  telegram_alerts.py    The daily job: reads state, fetches rates, checks for Telegram
-                         commands, sends alerts. Run via GitHub Actions.
-  setup_region.py        One-time (or one-off update) interactive script that sets your
-                          canonical DNO region.
-  check_env.py            Reports which required environment variables are set, without
-                           printing their actual values.
-```
+| Path | Purpose |
+| --- | --- |
+| `notifiers/telegram.py` | Formats slots and talks to the Telegram Bot API. Sends alerts, reads incoming `/setthreshold` and `/setregion` commands. |
+| `scripts/telegram_alerts.py` | The daily job: reads state, fetches rates, checks for Telegram commands, sends alerts. Run via GitHub Actions. |
+| `scripts/setup_region.py` | One-time (or one-off update) interactive script that sets your default region. |
+| `scripts/check_env.py` | Reports which required environment variables are set, without printing their actual values. |
 
 Rate fetching/categorizing (`octopus_core`) lives in a separate repo,
 [agile-octopus-core](https://github.com/lahatfield/agile-octopus-core), and is pulled in
@@ -39,19 +34,17 @@ as a regular dependency (see `pyproject.toml`).
 
 ### Configuration and state
 
-- **`.env`** (gitignored, never committed) holds secrets and one-time seed defaults —
-  copy `.env.example` to `.env` and fill in real values.
-- **`state/state_default.json`** (tracked in git) holds the canonical DNO region. Only
-  ever written by `scripts/setup_region.py` — never by a Telegram command.
+- **`.env`** (gitignored, never committed) holds secrets and one-time seed defaults.
+  Copy `.env.example` to `.env` and fill in real values.
+- **`state/state_default.json`** (tracked in git) holds the default DNO region
+  (Distribution Network Operator) - Octopus's single-letter code (A–P) for your regional
+  electricity distributor.
 - **`state/state_telegram.json`** (tracked in git) is the Telegram bot's own sandboxed
-  state: its current region, threshold, and a cursor tracking which Telegram messages
-  it's already processed. Seeded once from `state_default.json` and `.env`, then fully
-  independent — `/setregion` and `/setthreshold` only ever change *this* file, so a
+  state, including its current region, threshold, and a cursor tracking which Telegram messages
+  it has already processed. Seeded once from `state_default.json` and `.env`, then fully
+  independent. `/setregion` and `/setthreshold` only ever change *this* file, so a
   Telegram-triggered change can't silently affect some other future consumer of this
-  repo that reads the canonical `state_default.json` instead.
-
-This split exists specifically so a change made via a casual Telegram message can't
-propagate to something more foundational without a deliberate, human, committed change.
+  repo that reads `state_default.json` instead.
 
 ## Setup
 
