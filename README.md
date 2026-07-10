@@ -22,7 +22,6 @@ Each day (after Octopus publishes the next day's rates, ~4pm UK time), the bot:
 ## Architecture
 
 ```
-core/octopus.py       Fetch + categorize Octopus Agile rates.
 notifiers/telegram.py Formats slots and talks to the Telegram Bot API (sending alerts,
                        reading incoming /setthreshold and /setregion commands).
 scripts/               Entry points:
@@ -32,9 +31,11 @@ scripts/               Entry points:
                           canonical DNO region.
   check_env.py            Reports which required environment variables are set, without
                            printing their actual values.
-tests/                 pytest suite for core/octopus.py, using fake HTTP sessions so
-                       tests never hit the real Octopus API.
 ```
+
+Rate fetching/categorizing (`octopus_core`) lives in a separate repo,
+[agile-octopus-core](https://github.com/lahatfield/agile-octopus-core), and is pulled in
+as a regular dependency (see `pyproject.toml`).
 
 ### Configuration and state
 

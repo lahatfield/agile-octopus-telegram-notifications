@@ -1,6 +1,6 @@
 """Format Agile rate slots and post them to a Telegram group.
 
-Takes raw slots from core.octopus and a single price threshold; knows
+Takes raw slots from octopus_core and a single price threshold; knows
 nothing about how slots were fetched, so a future actuator can reuse the
 core without depending on this module.
 
@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from core.octopus import (
+from octopus_core import (
     RateSlot,
     VALID_REGIONS,
     categorize_slot,

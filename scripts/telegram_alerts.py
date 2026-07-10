@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
-from core.octopus import fetch_agile_rates, get_current_agile_product_code
+from octopus_core import fetch_agile_rates, get_current_agile_product_code
 from notifiers.telegram import (
     check_for_config_updates,
     send_all_slots,

@@ -7,6 +7,7 @@ name = "agile-octopus"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "agile-octopus-core" },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "tzdata" },
@@ -19,6 +20,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "agile-octopus-core", git = "https://github.com/lahatfield/agile-octopus-core.git?rev=v0.1.0" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "requests", specifier = ">=2.31" },
     { name = "tzdata", specifier = ">=2024.1" },
@@ -26,6 +28,14 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0" }]
+
+[[package]]
+name = "agile-octopus-core"
+version = "0.1.0"
+source = { git = "https://github.com/lahatfield/agile-octopus-core.git?rev=v0.1.0#7eb8155e0885db6274d3bad690255416d9de1268" }
+dependencies = [
+    { name = "requests" },
+]
 
 [[package]]
 name = "certifi"

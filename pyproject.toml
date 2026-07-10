@@ -7,6 +7,7 @@ dependencies = [
     "requests>=2.31",
     "tzdata>=2024.1",
     "python-dotenv>=1.0",
+    "agile-octopus-core @ git+https://github.com/lahatfield/agile-octopus-core.git@v0.1.0",
 ]
 
 [dependency-groups]
@@ -19,4 +20,4 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["core", "notifiers", "scripts"]
+packages = ["notifiers", "scripts"]

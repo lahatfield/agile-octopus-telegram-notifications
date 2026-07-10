@@ -8,7 +8,7 @@ push after running this so the region change reaches the scheduled job too.
 import json
 from pathlib import Path
 
-from core.octopus import VALID_REGIONS
+from octopus_core import VALID_REGIONS
 
 STATE_PATH = Path(__file__).parent.parent / "state" / "state_default.json"
 
