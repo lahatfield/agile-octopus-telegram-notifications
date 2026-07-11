@@ -1,25 +1,25 @@
-"""Format Agile rate slots and post them to a Telegram group.
+"""Format Agile rate slots and post them to a Telegram chat.
 
-Takes raw slots from octopus_core and a single price threshold; knows
-nothing about how slots were fetched, so a future actuator can reuse the
-core without depending on this module.
+Takes raw slots from octopus_core and a single price threshold.
 
-Two independent "bots" (distinguished by bot_token) consume this module:
-  - the "all slots" bot posts every slot for the day, every day.
-  - the "alerts" bot posts only plunge/spike slots, and only if any exist.
+One bot serves any number of chats. Each chat has its own `mode`, which
+governs what the *daily* scheduled push sends it: "all" (every slot),
+"alerts" (only plunge/spike slots), "both", or "off" (nothing). On-demand
+commands like /today and /tomorrow always send the full slot listing,
+regardless of `mode`.
 """
 
 from __future__ import annotations
 
-import datetime as dt
+import dataclasses
 import re
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 import requests
 
 from octopus_core import (
     RateSlot,
-    VALID_REGIONS,
     categorize_slot,
     filter_negative_slots,
     filter_spike_slots,
@@ -28,16 +28,41 @@ from octopus_core import (
 TELEGRAM_BASE_URL = "https://api.telegram.org/bot{token}"
 LONDON_TZ = ZoneInfo("Europe/London")
 
+VALID_MODES = {"all", "alerts", "both", "off"}
+
 # Slash commands are delivered to bots regardless of group privacy mode,
 # unlike plain messages, so no special bot configuration is needed for this.
 SET_THRESHOLD_PATTERN = re.compile(r"^/setthreshold(?:@\w+)?\s+(-?\d+(?:\.\d+)?)")
 SET_REGION_PATTERN = re.compile(r"^/setregion(?:@\w+)?\s+([A-Za-z])")
+SET_MODE_PATTERN = re.compile(r"^/setmode(?:@\w+)?\s+(\w+)")
+START_PATTERN = re.compile(r"^/start(?:@\w+)?\b")
+TODAY_PATTERN = re.compile(r"^/today(?:@\w+)?\b")
+TOMORROW_PATTERN = re.compile(r"^/tomorrow(?:@\w+)?\b")
 
 EMOJI_BY_CATEGORY = {
     "negative": "💰",
     "ok": "✅",
     "spike": "❌",
 }
+
+HELP_TEXT = (
+    "Agile price alerts for this chat.\n\n"
+    "Commands:\n"
+    "/setregion X - switch DNO region (e.g. /setregion C)\n"
+    "/setthreshold N - prices above N p/kWh count as a spike (e.g. /setthreshold 25)\n"
+    "/setmode all|alerts|both|off - which daily messages this chat receives\n"
+    "/today - send today's remaining slots right now\n"
+    "/tomorrow - send tomorrow's slots right now, if published yet\n"
+)
+
+CommandKind = Literal["start", "setregion", "setthreshold", "setmode", "today", "tomorrow"]
+
+
+@dataclasses.dataclass(frozen=True)
+class ChatCommand:
+    chat_id: str
+    kind: CommandKind
+    value: str | float | None = None
 
 
 def _format_time_range(slot: RateSlot) -> str:
@@ -49,17 +74,6 @@ def _format_time_range(slot: RateSlot) -> str:
 def _format_slot(slot: RateSlot, threshold: float) -> str:
     emoji = EMOJI_BY_CATEGORY[categorize_slot(slot, threshold)]
     return f"{emoji} {_format_time_range(slot)}: {slot.value_inc_vat:.2f}p/kWh"
-
-
-def _describe_day(slots: list[RateSlot]) -> str:
-    """Describe the (single) calendar day `slots` fall on, from a UK-local viewpoint."""
-    slot_date = slots[0].valid_from.astimezone(LONDON_TZ).date()
-    today = dt.datetime.now(LONDON_TZ).date()
-    if slot_date == today:
-        return "today"
-    if slot_date == today + dt.timedelta(days=1):
-        return "tomorrow"
-    return f"{slot_date:%a %d %b}"
 
 
 def _build_message(slots: list[RateSlot], threshold: float, header: str) -> str:
@@ -92,20 +106,24 @@ def send_text(
     _post_message(text, bot_token=bot_token, chat_id=chat_id, session=session)
 
 
-def check_for_config_updates(
+def send_help(*, bot_token: str, chat_id: str, session: requests.Session | None = None) -> None:
+    """Reply to /start (or an unrecognised command) with the command list."""
+    _post_message(HELP_TEXT, bot_token=bot_token, chat_id=chat_id, session=session)
+
+
+def poll_updates(
     *,
     bot_token: str,
-    chat_id: str,
     offset: int,
     session: requests.Session | None = None,
-) -> tuple[float | None, str | None, int]:
-    """Check for /setthreshold and /setregion commands sent to `chat_id` since `offset`.
+) -> tuple[list[ChatCommand], int]:
+    """Fetch pending Telegram updates for the whole bot and parse recognised commands.
 
-    Returns (new_threshold, new_region, next_offset). Either of the first
-    two is None if no valid matching command was found since `offset`; if
-    several of the same kind were sent, the most recent one wins. Callers
-    should persist `next_offset` and pass it back in as `offset` next time,
-    so the same messages aren't reprocessed.
+    Unlike a single-chat check, this returns every recognised command from
+    every chat the bot is in, in the order Telegram delivered them (so a
+    caller can apply /setregion before a later /today in the same batch).
+    Callers should persist `next_offset` and pass it back in as `offset`
+    next time, so the same updates aren't reprocessed.
     """
     session = session or requests.Session()
     url = f"{TELEGRAM_BASE_URL.format(token=bot_token)}/getUpdates"
@@ -113,28 +131,48 @@ def check_for_config_updates(
     response.raise_for_status()
     updates = response.json()["result"]
 
-    new_threshold = None
-    new_region = None
+    commands: list[ChatCommand] = []
     next_offset = offset
 
     for update in updates:
         next_offset = max(next_offset, update["update_id"] + 1)
         message = update.get("message")
-        if message is None or str(message["chat"]["id"]) != str(chat_id):
+        if message is None:
             continue
+        chat_id = str(message["chat"]["id"])
         text = message.get("text", "")
 
         threshold_match = SET_THRESHOLD_PATTERN.match(text)
         if threshold_match:
-            new_threshold = float(threshold_match.group(1))
+            commands.append(ChatCommand(chat_id, "setthreshold", float(threshold_match.group(1))))
+            continue
 
         region_match = SET_REGION_PATTERN.match(text)
         if region_match:
-            candidate = region_match.group(1).upper()
-            if candidate in VALID_REGIONS:
-                new_region = candidate
+            # Validity (is this a real region letter?) is left to the caller,
+            # so it can reply with a helpful error instead of the command
+            # silently vanishing.
+            commands.append(ChatCommand(chat_id, "setregion", region_match.group(1).upper()))
+            continue
 
-    return new_threshold, new_region, next_offset
+        mode_match = SET_MODE_PATTERN.match(text)
+        if mode_match:
+            commands.append(ChatCommand(chat_id, "setmode", mode_match.group(1).lower()))
+            continue
+
+        if START_PATTERN.match(text):
+            commands.append(ChatCommand(chat_id, "start"))
+            continue
+
+        if TODAY_PATTERN.match(text):
+            commands.append(ChatCommand(chat_id, "today"))
+            continue
+
+        if TOMORROW_PATTERN.match(text):
+            commands.append(ChatCommand(chat_id, "tomorrow"))
+            continue
+
+    return commands, next_offset
 
 
 def send_all_slots(
@@ -143,13 +181,13 @@ def send_all_slots(
     threshold: float,
     bot_token: str,
     chat_id: str,
+    header: str = "Agile prices",
     session: requests.Session | None = None,
 ) -> None:
-    """Post every slot for the day, marked with an emoji per `threshold`."""
+    """Post every slot, marked with an emoji per `threshold`."""
     if not slots:
         return
-    header = f"Agile prices for {_describe_day(slots)}:\n"
-    message = _build_message(slots, threshold, header)
+    message = _build_message(slots, threshold, f"{header}:\n")
     _post_message(message, bot_token=bot_token, chat_id=chat_id, session=session)
 
 
@@ -159,12 +197,36 @@ def send_notable_alert(
     threshold: float,
     bot_token: str,
     chat_id: str,
+    header: str = "Agile plunge/spike alert",
     session: requests.Session | None = None,
 ) -> None:
     """Post only plunge/spike slots (skipping OK ones), if any exist."""
     notable_slots = filter_negative_slots(slots) + filter_spike_slots(slots, threshold)
     if not notable_slots:
         return
-    header = f"Agile plunge/spike alert for {_describe_day(notable_slots)}:\n"
-    message = _build_message(notable_slots, threshold, header)
+    message = _build_message(notable_slots, threshold, f"{header}:\n")
     _post_message(message, bot_token=bot_token, chat_id=chat_id, session=session)
+
+
+def send_for_mode(
+    slots: list[RateSlot],
+    *,
+    mode: str,
+    threshold: float,
+    bot_token: str,
+    chat_id: str,
+    day: str = "today",
+    session: requests.Session | None = None,
+) -> None:
+    """Send the message(s) appropriate for `mode` ("all" / "alerts" / "both" / "off"),
+    both headers describing `day` (e.g. "tomorrow")."""
+    if mode in ("all", "both"):
+        send_all_slots(
+            slots, threshold=threshold, bot_token=bot_token, chat_id=chat_id,
+            header=f"Agile prices for {day}", session=session,
+        )
+    if mode in ("alerts", "both"):
+        send_notable_alert(
+            slots, threshold=threshold, bot_token=bot_token, chat_id=chat_id,
+            header=f"Agile plunge/spike alert for {day}", session=session,
+        )

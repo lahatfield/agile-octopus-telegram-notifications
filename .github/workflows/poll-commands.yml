@@ -1,15 +1,19 @@
-name: Daily Agile Plunge Check
+name: Poll Telegram Commands
 
 on:
   schedule:
-    - cron: "30 16 * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
+
+concurrency:
+  group: poll-commands
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  check-rates:
+  poll:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repo
@@ -23,12 +27,10 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Run daily alert check
+      - name: Poll and handle Telegram commands
         env:
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_ALL_SLOTS_BOT_TOKEN: ${{ secrets.TELEGRAM_ALL_SLOTS_BOT_TOKEN }}
-          TELEGRAM_ALERTS_BOT_TOKEN: ${{ secrets.TELEGRAM_ALERTS_BOT_TOKEN }}
-        run: uv run python -m scripts.telegram_alerts
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: uv run python -m scripts.poll_commands
 
       - name: Commit updated state, if changed
         run: |

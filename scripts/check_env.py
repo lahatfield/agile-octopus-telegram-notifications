@@ -13,13 +13,11 @@ PROJECT_ROOT = Path(__file__).parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
 REQUIRED_VARS = [
-    "TELEGRAM_CHAT_ID",
-    "TELEGRAM_ALL_SLOTS_BOT_TOKEN",
-    "TELEGRAM_ALERTS_BOT_TOKEN",
+    "TELEGRAM_BOT_TOKEN",
 ]
 OPTIONAL_VARS = [
-    "REGION",  # one-time seed only; falls back to state/state_default.json if unset
-    "THRESHOLD",  # one-time seed only; falls back to 30.0 if unset
+    "REGION",  # seed default for newly self-registered chats; falls back to state/state_default.json if unset
+    "THRESHOLD",  # seed default for newly self-registered chats; falls back to 30.0 if unset
 ]
 
 

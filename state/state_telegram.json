@@ -1,5 +1,4 @@
 {
-  "region": "P",
-  "threshold": 30.0,
-  "telegram_offset": 384437557
+  "offset": 0,
+  "chats": {}
 }
