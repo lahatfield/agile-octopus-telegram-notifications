@@ -4,3 +4,4 @@ __pycache__/
 .env
 *.egg-info/
 .devnotes
+state/state_telegram.json

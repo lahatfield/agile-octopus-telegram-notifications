@@ -65,24 +65,24 @@ class ChatCommand:
     value: str | float | None = None
 
 
-def _format_time_range(slot: RateSlot) -> str:
+def format_time_range(slot: RateSlot) -> str:
     local_from = slot.valid_from.astimezone(LONDON_TZ)
     local_to = slot.valid_to.astimezone(LONDON_TZ)
     return f"{local_from:%H:%M}-{local_to:%H:%M}"
 
 
-def _format_slot(slot: RateSlot, threshold: float) -> str:
+def format_slot(slot: RateSlot, threshold: float) -> str:
     emoji = EMOJI_BY_CATEGORY[categorize_slot(slot, threshold)]
-    return f"{emoji} {_format_time_range(slot)}: {slot.value_inc_vat:.2f}p/kWh"
+    return f"{emoji} {format_time_range(slot)}: {slot.value_inc_vat:.2f}p/kWh"
 
 
-def _build_message(slots: list[RateSlot], threshold: float, header: str) -> str:
+def build_message(slots: list[RateSlot], threshold: float, header: str) -> str:
     sorted_slots = sorted(slots, key=lambda slot: slot.valid_from)
-    lines = [header] + [_format_slot(slot, threshold) for slot in sorted_slots]
+    lines = [header] + [format_slot(slot, threshold) for slot in sorted_slots]
     return "\n".join(lines)
 
 
-def _post_message(
+def post_message(
     text: str,
     *,
     bot_token: str,
@@ -103,12 +103,12 @@ def send_text(
     session: requests.Session | None = None,
 ) -> None:
     """Post an arbitrary plain-text message, e.g. a confirmation reply."""
-    _post_message(text, bot_token=bot_token, chat_id=chat_id, session=session)
+    post_message(text, bot_token=bot_token, chat_id=chat_id, session=session)
 
 
 def send_help(*, bot_token: str, chat_id: str, session: requests.Session | None = None) -> None:
     """Reply to /start (or an unrecognised command) with the command list."""
-    _post_message(HELP_TEXT, bot_token=bot_token, chat_id=chat_id, session=session)
+    post_message(HELP_TEXT, bot_token=bot_token, chat_id=chat_id, session=session)
 
 
 def poll_updates(
@@ -187,8 +187,8 @@ def send_all_slots(
     """Post every slot, marked with an emoji per `threshold`."""
     if not slots:
         return
-    message = _build_message(slots, threshold, f"{header}:\n")
-    _post_message(message, bot_token=bot_token, chat_id=chat_id, session=session)
+    message = build_message(slots, threshold, f"{header}:\n")
+    post_message(message, bot_token=bot_token, chat_id=chat_id, session=session)
 
 
 def send_notable_alert(
@@ -204,8 +204,8 @@ def send_notable_alert(
     notable_slots = filter_negative_slots(slots) + filter_spike_slots(slots, threshold)
     if not notable_slots:
         return
-    message = _build_message(notable_slots, threshold, f"{header}:\n")
-    _post_message(message, bot_token=bot_token, chat_id=chat_id, session=session)
+    message = build_message(notable_slots, threshold, f"{header}:\n")
+    post_message(message, bot_token=bot_token, chat_id=chat_id, session=session)
 
 
 def send_for_mode(

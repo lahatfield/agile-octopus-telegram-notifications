@@ -23,7 +23,12 @@ STATE_DIR = PROJECT_ROOT / "state"
 # Seed-only default region, written by `python -m scripts.setup_region`. Used
 # only when a brand new chat registers itself and hasn't run /setregion yet.
 SHARED_STATE_PATH = STATE_DIR / "state_default.json"
-STATE_PATH = STATE_DIR / "state_telegram.json"
+
+# state_telegram.json holds chat IDs, so it lives in a separate private repo rather
+# than this one. TELEGRAM_STATE_DIR points at a checkout of that repo in CI; locally
+# it falls back to this repo's own state/ dir.
+TELEGRAM_STATE_DIR = Path(os.environ["TELEGRAM_STATE_DIR"]) if os.environ.get("TELEGRAM_STATE_DIR") else STATE_DIR
+STATE_PATH = TELEGRAM_STATE_DIR / "state_telegram.json"
 
 DEFAULT_MODE = "both"
 DEFAULT_THRESHOLD = 30.0

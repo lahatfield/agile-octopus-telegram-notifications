@@ -32,14 +32,14 @@ PROJECT_ROOT = Path(__file__).parent.parent
 load_dotenv(PROJECT_ROOT / ".env")  # no-op locally if .env doesn't exist; harmless in CI too
 
 
-class _RatesFetcher:
+class RatesFetcher:
     """Fetches rates lazily, caching by (region, window kind) within one run."""
 
     def __init__(self) -> None:
         self._product_code: str | None = None
         self._cache: dict[tuple[str, str], list] = {}
 
-    def _get_product_code(self) -> str:
+    def get_product_code(self) -> str:
         if self._product_code is None:
             self._product_code = get_current_agile_product_code()
         return self._product_code
@@ -48,17 +48,17 @@ class _RatesFetcher:
         key = (region, kind)
         if key not in self._cache:
             window = todays_remaining_utc_window() if kind == "today" else tomorrows_utc_window()
-            self._cache[key] = fetch_agile_rates(self._get_product_code(), region, *window)
+            self._cache[key] = fetch_agile_rates(self.get_product_code(), region, *window)
         return self._cache[key]
 
 
-def _get_or_register_chat(chats: dict, chat_id: str) -> dict:
+def get_or_register_chat(chats: dict, chat_id: str) -> dict:
     if chat_id not in chats:
         chats[chat_id] = default_chat_config()
     return chats[chat_id]
 
 
-def _handle_command(command: ChatCommand, *, chats: dict, bot_token: str, rates: _RatesFetcher) -> None:
+def handle_command(command: ChatCommand, *, chats: dict, bot_token: str, rates: RatesFetcher) -> None:
     chat_id = command.chat_id
 
     if command.kind == "setregion":
@@ -70,13 +70,13 @@ def _handle_command(command: ChatCommand, *, chats: dict, bot_token: str, rates:
                 chat_id=chat_id,
             )
             return
-        config = _get_or_register_chat(chats, chat_id)
+        config = get_or_register_chat(chats, chat_id)
         config["region"] = region
         send_text(f"Region updated to {region}.", bot_token=bot_token, chat_id=chat_id)
         return
 
     if command.kind == "setthreshold":
-        config = _get_or_register_chat(chats, chat_id)
+        config = get_or_register_chat(chats, chat_id)
         config["threshold"] = command.value
         send_text(f"Threshold updated to {command.value}p.", bot_token=bot_token, chat_id=chat_id)
         return
@@ -90,18 +90,18 @@ def _handle_command(command: ChatCommand, *, chats: dict, bot_token: str, rates:
                 chat_id=chat_id,
             )
             return
-        config = _get_or_register_chat(chats, chat_id)
+        config = get_or_register_chat(chats, chat_id)
         config["mode"] = mode
         send_text(f"Mode updated to {mode}.", bot_token=bot_token, chat_id=chat_id)
         return
 
     if command.kind == "start":
-        _get_or_register_chat(chats, chat_id)
+        get_or_register_chat(chats, chat_id)
         send_help(bot_token=bot_token, chat_id=chat_id)
         return
 
     if command.kind == "today":
-        config = _get_or_register_chat(chats, chat_id)
+        config = get_or_register_chat(chats, chat_id)
         slots = rates.fetch(config["region"], "today")
         if not slots:
             send_text("No more slots left for today.", bot_token=bot_token, chat_id=chat_id)
@@ -113,7 +113,7 @@ def _handle_command(command: ChatCommand, *, chats: dict, bot_token: str, rates:
         return
 
     if command.kind == "tomorrow":
-        config = _get_or_register_chat(chats, chat_id)
+        config = get_or_register_chat(chats, chat_id)
         slots = rates.fetch(config["region"], "tomorrow")
         if not slots:
             send_text(
@@ -137,10 +137,10 @@ def main() -> None:
     commands, next_offset = poll_updates(bot_token=bot_token, offset=state["offset"])
     state["offset"] = next_offset
 
-    rates = _RatesFetcher()
+    rates = RatesFetcher()
     for command in commands:
         try:
-            _handle_command(command, chats=chats, bot_token=bot_token, rates=rates)
+            handle_command(command, chats=chats, bot_token=bot_token, rates=rates)
         except Exception as exc:  # noqa: BLE001 - one chat's failure shouldn't sink the rest
             print(f"Failed to handle {command.kind} for chat {command.chat_id}: {exc}")
 

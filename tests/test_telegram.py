@@ -3,7 +3,7 @@ import pytest
 from notifiers.telegram import ChatCommand, poll_updates
 
 
-class _FakeResponse:
+class FakeResponse:
     def __init__(self, payload):
         self._payload = payload
 
@@ -14,15 +14,15 @@ class _FakeResponse:
         return self._payload
 
 
-class _FakeSession:
+class FakeSession:
     def __init__(self, updates):
         self._updates = updates
 
     def get(self, url, params=None):
-        return _FakeResponse({"result": self._updates})
+        return FakeResponse({"result": self._updates})
 
 
-def _update(update_id, chat_id, text):
+def update(update_id, chat_id, text):
     return {
         "update_id": update_id,
         "message": {"chat": {"id": chat_id}, "text": text},
@@ -30,12 +30,12 @@ def _update(update_id, chat_id, text):
 
 
 def test_poll_updates_parses_commands_across_multiple_chats():
-    session = _FakeSession(
+    session = FakeSession(
         [
-            _update(1, -100, "/setregion c"),
-            _update(2, 200, "/setthreshold 25"),
-            _update(3, -100, "/today"),
-            _update(4, 200, "just chatting, not a command"),
+            update(1, -100, "/setregion c"),
+            update(2, 200, "/setthreshold 25"),
+            update(3, -100, "/today"),
+            update(4, 200, "just chatting, not a command"),
         ]
     )
 
@@ -52,10 +52,10 @@ def test_poll_updates_parses_commands_across_multiple_chats():
 def test_poll_updates_defers_validity_checks_to_the_caller():
     """An unrecognised region/mode still produces a command -- the caller decides
     whether it's valid and how to reply, rather than it silently vanishing here."""
-    session = _FakeSession(
+    session = FakeSession(
         [
-            _update(1, 200, "/setregion z"),
-            _update(2, 200, "/setmode loud"),
+            update(1, 200, "/setregion z"),
+            update(2, 200, "/setmode loud"),
         ]
     )
 
@@ -68,7 +68,7 @@ def test_poll_updates_defers_validity_checks_to_the_caller():
 
 
 def test_poll_updates_advances_offset_even_with_no_recognised_commands():
-    session = _FakeSession([_update(41, 200, "hello")])
+    session = FakeSession([update(41, 200, "hello")])
 
     commands, next_offset = poll_updates(bot_token="TOKEN", offset=0, session=session)
 
@@ -86,7 +86,7 @@ def test_poll_updates_advances_offset_even_with_no_recognised_commands():
     ],
 )
 def test_poll_updates_recognises_literal_commands(text, kind):
-    session = _FakeSession([_update(1, 200, text)])
+    session = FakeSession([update(1, 200, text)])
 
     commands, _ = poll_updates(bot_token="TOKEN", offset=0, session=session)
 

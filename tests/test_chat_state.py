@@ -6,7 +6,7 @@ from scripts import chat_state
 
 
 @pytest.fixture(autouse=True)
-def _isolated_state_paths(tmp_path, monkeypatch):
+def isolated_state_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(chat_state, "STATE_PATH", tmp_path / "state_telegram.json")
     monkeypatch.setattr(chat_state, "SHARED_STATE_PATH", tmp_path / "state_default.json")
     monkeypatch.delenv("REGION", raising=False)

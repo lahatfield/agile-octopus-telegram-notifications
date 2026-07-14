@@ -9,15 +9,19 @@ concurrency:
   group: poll-commands
   cancel-in-progress: false
 
-permissions:
-  contents: write
-
 jobs:
   poll:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
+
+      - name: Check out state repo
+        uses: actions/checkout@v4
+        with:
+          repository: lahatfield/agile-octopus-state
+          token: ${{ secrets.STATE_REPO_TOKEN }}
+          path: state-repo
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -30,12 +34,14 @@ jobs:
       - name: Poll and handle Telegram commands
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_STATE_DIR: ${{ github.workspace }}/state-repo
         run: uv run python -m scripts.poll_commands
 
       - name: Commit updated state, if changed
+        working-directory: state-repo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add state/state_telegram.json
+          git add state_telegram.json
           git diff --staged --quiet || git commit -m "Update Telegram state [skip ci]"
           git push

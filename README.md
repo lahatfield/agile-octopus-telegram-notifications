@@ -45,9 +45,12 @@ as a regular dependency (see `pyproject.toml`).
 - **`state/state_default.json`** (tracked in git) holds the default DNO region
   (Distribution Network Operator) - Octopus's single-letter code (A–P) for your regional
   electricity distributor - seeded to any chat the moment it first messages the bot.
-- **`state/state_telegram.json`** (tracked in git) holds every registered chat's own
-  region, threshold and mode, plus a single cursor tracking which Telegram messages have
-  already been processed (Telegram's `getUpdates` cursor is bot-wide, not per-chat).
+- **`state_telegram.json`** holds every registered chat's own region, threshold and mode,
+  plus a single cursor tracking which Telegram messages have already been processed
+  (Telegram's `getUpdates` cursor is bot-wide, not per-chat). Since it contains chat IDs,
+  it's tracked in a separate private repo rather than this one - see
+  [State repo](#state-repo) below. Locally it defaults to `state/state_telegram.json` in
+  this repo (gitignored) unless `TELEGRAM_STATE_DIR` is set.
 
   Example json:
   ```json
@@ -61,6 +64,23 @@ as a regular dependency (see `pyproject.toml`).
   Only `scripts/poll_commands.py` ever writes this file. This project is intended for a
   handful of your own chats, not as a public multi-tenant service. Every chat_id
   committed here belongs to a chat you administer.
+
+### State repo
+
+To set up the separate state repo:
+
+1. Create an empty private repo (e.g. `agile-octopus-state`).
+2. Generate a fine-grained [personal access token](https://github.com/settings/personal-access-tokens)
+   scoped to *only* that repo, with **Contents: Read and write** permission.
+3. Add it as a secret named `STATE_REPO_TOKEN` on *this* repo (Settings → Secrets and
+   variables → Actions).
+4. Clone the state repo locally, add a `state_telegram.json` (an empty `{"offset": 0,
+   "chats": {}}` is fine to start), and push it.
+5. Update the `repository:` value under "Check out state repo" in both workflow files if
+   your state repo isn't `lahatfield/agile-octopus-state`.
+
+Both workflows check it out into `state-repo/` and point `TELEGRAM_STATE_DIR` at it; only
+`poll-commands.yml` commits and pushes back to it.
 
 ## Setup
 
@@ -142,8 +162,9 @@ Two scheduled GitHub Actions workflows (see `.github/workflows/`):
   (read-only) `GITHUB_TOKEN` permissions.
 - `poll-commands.yml`
   Every five minutes, handles all commands and registers new
-  chats. The only workflow that commits `state/state_telegram.json`, so it needs
-  `permissions: contents: write`.
+  chats. The only workflow that writes `state_telegram.json`, committing and pushing it
+  to the separate state repo using the `STATE_REPO_TOKEN` secret (see
+  [State repo](#state-repo) above).
 
 Note GitHub disables scheduled workflows in a repo after 60 days with no commits (not
 runs). If notifications silently stop, check whether they've been auto-disabled in the
