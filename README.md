@@ -23,7 +23,7 @@ waiting for the next scheduled daily run.
 
 If all you want is to get the Agile Octopus notifications, you can use my existing bot with
 no GitHub setup required. Please bear in mind: this will cause your Telegram chat IDs to 
-appear in a private repository that I manage (a chat ID is not senstive information, but 
+appear in a private repository that I manage (a chat ID is not sensitive information, but 
 keep it in mind).
 
 1. Add @MunroOctoBot to any Telegram chats you want alerts in (group chat or DMs). The bot only
